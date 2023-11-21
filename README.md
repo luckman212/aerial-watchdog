@@ -6,8 +6,8 @@ This problem seems to occur on some macOS Sonoma 14 machines. See: https://githu
 
 ### Install
 
-- Download the `ss_watchdog` script
-- copy it to `/usr/local/bin`
+- Download the `ss_watchdog` script or clone this repo
+- copy the script to `/usr/local/bin`
 - execute `ss_watchdog --install` to install the Agent
 
 ### Uninstall
