@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+# https://github.com/JohnCoates/Aerial/issues/1341
+# kills Aerial if legacyScreenSaver is eating the CPU
+
+ITER=5
+INTERVAL=600 #run every 10 min
+PLIST="$HOME/Library/LaunchAgents/${0##*/}.plist"
+FULLPATH=$(realpath "$0")
+
+_uninstall_launchagent() {
+	launchctl bootout gui/$UID "$PLIST" 2>/dev/null
+	rm 2>/dev/null "$PLIST"
+	echo "uninstalled ${0##*/} LaunchAgent"
+}
+
+_install_launchagent() {
+	_uninstall_launchagent &>/dev/null
+	cat >"$PLIST" <<-EOF
+	<?xml version="1.0" encoding="UTF-8"?>
+	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+	<plist version="1.0">
+	<dict>
+		<key>Label</key>
+		<string>com.ss-watchdog.agent</string>
+		<key>Program</key>
+		<string>$FULLPATH</string>
+		<key>StandardErrorPath</key>
+		<string>/tmp/${0##*/}.stderr</string>
+		<key>StandardOutPath</key>
+		<string>/tmp/${0##*/}.stdout</string>
+		<key>StartInterval</key>
+		<integer>$INTERVAL</integer>
+		<key>WorkingDirectory</key>
+		<string>/tmp</string>
+	</dict>
+	</plist>
+	EOF
+	chmod 644 "$PLIST"
+	if launchctl bootstrap gui/$UID "$PLIST"; then
+		echo "installed ${0##*/} LaunchAgent"
+	fi
+}
+
+case $1 in
+	-i|--install) _install_launchagent; exit;;
+	-u|--uninstall) _uninstall_launchagent; exit;;
+	-h|--help) echo "usage: ${0##*/} [-iu]"
+esac
+
+declare -a CPU_ARR=()
+read -r PID < <(pgrep -x legacyScreenSaver)
+[[ -n $PID ]] || exit 0
+
+while (( ITER -- )); do
+	c=$(ps -o%cpu= -p "$PID")
+	CPU_ARR+=( "$c" )
+	(( ITER > 0 )) && sleep 1
+done
+(( ${#CPU_ARR[@]} > 0 )) || exit
+read -r AVG_CPU < <(
+	printf '%s\n' "${CPU_ARR[@]}" |
+	awk '{ sum += $1; count++ } END { print int(sum/count) }'
+)
+
+if (( AVG_CPU > 90 )); then
+	killall -SIGKILL legacyScreenSaver
+	echo 1>&2 "legacyScreenSaver was hung and has been killed"
+else
+	echo "$AVG_CPU"
+fi
