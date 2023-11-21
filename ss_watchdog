@@ -66,6 +66,4 @@ read -r AVG_CPU < <(
 if (( AVG_CPU > 90 )); then
 	killall -SIGKILL legacyScreenSaver
 	echo 1>&2 "legacyScreenSaver was hung and has been killed"
-else
-	echo "$AVG_CPU"
 fi
